@@ -18,8 +18,10 @@ use constant {
 };
 
 # Module einbinden
-require CTCC::Client;
-require Net::Melted;
+#require CTCC::Client;
+require "/home/ecki/Projekte/software/sendeschleife/CTCC/Client.pm";
+#require Net::Melted;
+require "/home/ecki/Projekte/software/sendeschleife/Net/Melted.pm";
 
 my $einstellungen = XMLin("demo-schleife/einstellungen.xml");
 my $logo = $einstellungen->{logo};
@@ -190,6 +192,26 @@ sub get_trenner{
   }
 }
 
+sub get_ankuend{
+  my ($tag,$uhrzeit) = @_;
+  my $uhr;
+  for my $sendung (@{$tag->{sendung}}){
+    if(ref($sendung->{uhrzeit}) eq'ARRAY'){
+      $uhr = $sendung->{uhrzeit}->{content};
+    } else {
+      $uhr = $sendung->{uhrzeit};
+    }
+    if ($uhr == $uhrzeit){
+      if(!($sendung->{ankuendigung})){
+        return 0;
+      } else {
+        #$sendung->{freq}?
+        return $sendung->{ankuendigung};
+      }
+    }
+  }
+}
+
 sub einzel{
   my ($sendung) = @_;
   logo($sendung->{logo});
@@ -203,16 +225,18 @@ sub listezufall{
   my $dateiliste = get_datei_liste($tag,$uhrzeit);
   my $logosendung = get_logo($tag,$uhrzeit);
   my $trennersendung = get_trenner($tag,$uhrzeit);
+  #my $ankuendigung = ???
   my $zeit = strftime "%H:%M", localtime;
   while (sleep(LOOP_SLEEP)) {
     $zeit = strftime "%H:%M", localtime;
     for my $sendung (@{$tag->{sendung}}){
-    if(ref($sendung->{uhrzeit}) eq'ARRAY'){
-      $uhr = $sendung->{uhrzeit}->{content};
-    } else {
-      $uhr = $sendung->{uhrzeit};
+      if(ref($sendung->{uhrzeit}) eq'ARRAY'){
+        $uhr = $sendung->{uhrzeit}->{content};
+      } else {
+        $uhr = $sendung->{uhrzeit};
+      }
     }
-    if($zeit eq $uhr){
+    if(($zeit eq $uhr)and($zeit ne $$uhrzeit)){
       return;
     }
     my $result = $melted->get();
@@ -222,6 +246,10 @@ sub listezufall{
          logo($logosendung);
          play($last_video);
          play(random_video(\@$trennersendung,{append => 1}));
+         #zufall 0-100
+         #if(zufall < freq){
+         #  play(random_video(\@$ankuendigung,{append => 1}));
+         #}
       }
     }
   }
@@ -232,17 +260,20 @@ sub listefest{
   my $dateiliste = get_datei_liste($tag,$uhrzeit);
   my $logosendung = get_logo($tag,$uhrzeit);
   my $trennersendung = get_trenner($tag,$uhrzeit);
+  #my $ankuendigung = ???
   my $zeit = strftime "%H:%M", localtime;
+  my $uhr = "";
   my $i = 0;
   while (sleep(LOOP_SLEEP)) {
     $zeit = strftime "%H:%M", localtime;
     for my $sendung (@{$tag->{sendung}}){
-    if(ref($sendung->{uhrzeit}) eq'ARRAY'){
-      $uhr = $sendung->{uhrzeit}->{content};
-    } else {
-      $uhr = $sendung->{uhrzeit};
+      if(ref($sendung->{uhrzeit}) eq'ARRAY'){
+        $uhr = $sendung->{uhrzeit}->{content};
+      } else {
+        $uhr = $sendung->{uhrzeit};
+      }
     }
-    if($zeit eq $uhr){
+    if(($zeit eq $uhr)and($zeit ne $$uhrzeit)){
       return;
     }
     my $result = $melted->get();
@@ -250,6 +281,10 @@ sub listefest{
       logo($logosendung);
       play(@$dateiliste[$i]);
       play(random_video(\@$trennersendung,{append => 1}));
+      #zufall 0-100
+      #if(zufall < freq){
+      #  play(random_video(\@$ankuendigung,{append => 1}));
+      #}
       $i++;
       if($i>@$dateiliste){
          $i=0;
@@ -282,12 +317,12 @@ while (sleep(LOOP_SLEEP)) {
   my $zeit = strftime "%H:", localtime;
   if($zeit =~ /23:/){
     #read tag
-    $tag=lese_tag();
+    @tag=lese_tag();
     #read einstellungen?
   }
   $zeit = strftime "%H:%M", localtime;
   my $result = $melted->get();
-  for my $sendung (@{$tag->{sendung}}){
+  for my $sendung (${@tag->{sendung}}){
     if(ref($sendung->{uhrzeit}) eq'ARRAY'){
       $uhr = $sendung->{uhrzeit}->{content};
       if($sendung->{uhrzeit}->{fallback} eq '1'){
@@ -308,10 +343,10 @@ while (sleep(LOOP_SLEEP)) {
         push(@merkelogo, $aktuell_logo);
         $unterbrechung = '0';
         if($sendung->{was} eq 'listezufall'){
-          listezufall($tag,$uhr);
+          listezufall(@tag,$uhr);
         }
         elsif($sendung->{was} eq 'listefest'){
-          listefest($tag,$uhr);
+          listefest(@tag,$uhr);
         }
         elsif($sendung->{was} eq 'einzel'){
           einzel($sendung);
@@ -362,4 +397,3 @@ while (sleep(LOOP_SLEEP)) {
 }
 
 exit;
-
